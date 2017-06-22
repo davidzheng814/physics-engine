@@ -4,8 +4,6 @@ var colors = [
   'blue', 'red', 'green', '#ffff00', 'black', 'orange'
 ]
 
-var SEND_PFX = "SEND:";
-
 var ACTIONS = {
   LEFT: 'LEFT',
   RIGHT: 'RIGHT',
@@ -38,8 +36,9 @@ var method = Simulator.prototype;
 function Simulator(elt, num_bodies, width, height) {
   this.elt = elt || null;
   this.num_bodies = num_bodies || 2;
-  this.width = width || 400;
-  this.height = height || 400;
+  this.width = width || 350;
+  this.height = height || 350;
+  this.maxVel = 25;
   this.init();
 }
 
@@ -57,27 +56,6 @@ method.init = function () {
         width: this.width * 2,
         height: this.height * 2,
       }
-    });
-
-    $(document).keydown((e) => {
-      switch(e.which) {
-        case 37: // left
-          this.actions.push(ACTIONS.LEFT);
-          break;
-        case 38: // up
-          this.actions.push(ACTIONS.UP);
-          break;
-        case 39: // right
-          this.actions.push(ACTIONS.RIGHT);
-          break;
-        case 40: // down
-          this.actions.push(ACTIONS.DOWN);
-          break;
-        case 83: // stop
-          this.actions.push(ACTIONS.STOP);
-          break;
-      }
-      e.preventDefault();
     });
   } else {
     var pcanvas = PImage.make(this.width, this.height);
@@ -113,57 +91,25 @@ method.init = function () {
   renderOptions.showSeparations = false;
   renderOptions.background = '#fff';
 
-  this.actions = [];
   var thickness = 50;
-  var wall_config = { isStatic: true, restitution: 1, mass: 1000, inverseMass: 1/1000.};
+  var wall_config = { isStatic: true, restitution: 1, mass: Infinity};
   this.walls = [
     Bodies.rectangle(this.width/2., -thickness/2., this.width, thickness, wall_config), // top
     Bodies.rectangle(this.width/2., this.height+thickness/2., this.width, thickness, wall_config), // bottom
-    Bodies.rectangle(this.height+thickness/2., this.height/2., thickness, this.height, wall_config), // right
+    Bodies.rectangle(this.width+thickness/2., this.height/2., thickness, this.height, wall_config), // right
     Bodies.rectangle(-thickness/2., this.height/2., thickness, this.height, wall_config) // left
   ];
 
-  this.generateObjects()
+  this.generateObjects();
 
   // add all of the bodies to the world
   World.add(engine.world, this.walls);
   World.add(engine.world, this.bodies);
-
-}
-
-method.applyAction = function () {
-  if (this.actions.length == 0) return;
-  var action = this.actions[0];
-  var force;
-  var strength = 20;
-  switch (action) {
-    case ACTIONS.LEFT:
-      vel = {x:-strength, y:0};
-      break;
-    case ACTIONS.UP:
-      vel = {x:0, y:-strength};
-      break;
-    case ACTIONS.RIGHT:
-      vel = {x:strength, y:0};
-      break;
-    case ACTIONS.DOWN:
-      vel = {x:0, y:strength};
-      break;
-    case ACTIONS.STOP:
-      vel = {x:0, y:0};
-      break;
-  }
-  Matter.Body.setVelocity(this.my_body, vel);
-};
-
-method.clearActions = function () {
-  this.actions = [];
 }
 
 method.runEngine = function () {
   if (_isBrowser) {
     setInterval(() => {
-      this.applyAction();
       this.clearActions();
       Engine.update(this.engine, 1000 / 200);
     }, 50);
@@ -174,14 +120,9 @@ method.runEngine = function () {
   }
 }
 
-method.runEngineStep = function (action) {
+method.runEngineStep = function () {
   if (!_isBrowser) {
-    if (action != ACTIONS.NONE) {
-      this.actions.push(action);
-      this.applyAction();
-      this.clearActions();
-    }
-    Engine.update(this.engine, 1000 / 20);
+    Engine.update(this.engine, 1000 / 60);
   }
 }
 
@@ -196,14 +137,6 @@ method.runRenderStep = function (filename) {
             mass: Math.round(body.mass)
 					};
         };
-        var payload = {
-          filename: filename,
-          actor: get_info(this.my_body),
-          obj1: get_info(this.bodies[1])
-        };
-        var msg = SEND_PFX + JSON.stringify(payload) + "\n";
-        console.log(msg);
-        child.stdin.write(msg);
     });
   }
 }
@@ -239,63 +172,92 @@ method.generateObjects = function () {
       }
       if (success) break;
     }
-    var config = { restitution: 1, friction:0, frictionAir: 0, render: {
+    var config = { restitution: 1.00, friction:0, frictionAir: 0, frictionStatic:0, render: {
       fillStyle: colors[i],
     }};
     var body = Bodies.circle(x, y, radius, config);
+
     if (i == 0) {
-      Body.setMass(body, 5);
-    } else {
-      var mass = 2 + Math.floor(Math.random() * 3); // uniform over {2, 3, 4}
+      var mass = 2 + Math.random() * 6; // uniform over [2,8]
       Body.setMass(body, mass);
+    } else {
+      Body.setMass(body, 4);
     }
-    Body.setInertia(body, 10000);
+
+    Body.setInertia(body, Infinity);
+
+    var vel_x = 10 + Math.random() * 8;
+    var vel_y = 10 + Math.random() * 8;
+    Body.setVelocity(body, {x: vel_x, y:vel_y});
+
     // add body and position
     this.positions.push([x, y]);
     this.bodies.push(body);
   }
-  this.my_body = this.bodies[0];
 }
 
-function runFromCommandLine(filename) {
-  var simulator = new Simulator();
-  simulator.runRenderStep(filename+'_0.png');
-  var i = 1;
-  rl.on('line', (line) => {
-    console.log("RECEIVED:",line);
-    if (!line.startsWith(SEND_PFX)) return;
-    line = line.substring(SEND_PFX.length);
+function getJsonState(simulator) {
+  // extract position/velocity/mass
+  return {
+    pos: simulator.bodies.map(obj => {
+      x:obj.position.x / simulator.width, y:obj.position.y / simulator.height}),
+    vel: simulator.bodies.map(obj => {
+      x:obj.velocity.x / simulator.maxVel, y:obj.velocity.y / simulator.maxVel}),
+  }
+}
 
-    if (line === ACTIONS.END) {
-      rl.close();
-      process.exit(0);
-    }
-    var action = line.trim().toUpperCase();
-    if ([ACTIONS.UP,ACTIONS.DOWN,ACTIONS.RIGHT,ACTIONS.LEFT,ACTIONS.STOP,ACTIONS.NONE]
-        .indexOf(action) == -1) return;
-    simulator.runRenderStep(filename+'_'+i+'.png');
-    simulator.runEngineStep(action);
-    ++i;
+function writeToFile(data, outputFile) {
+  text = JSON.stringify(data);
+  fs.writeFile(outputFile, text, function (err) {
+    if (err) { return console.log(err) };
   });
+}
+
+function run(numSteps, outputBase, idx, imageBase) {
+  var simulator = new Simulator();
+
+  var states = [];
+  var data = {states: states, masses:simulator.bodies.map(x => x.mass)};
+  for (var i = 0; i < numSteps; ++i) {
+    simulator.runEngineStep();
+    if (imageBase) {
+      simulator.runRenderStep(imageBase+'_'+idx+'_'+i+'.png');
+    }
+    var state = getJsonState(simulator);
+    states.push(state);
+  }
+  writeToFile(data, outputBase+'_'+idx+'.json');
 }
 
 if (!_isBrowser) {
   var optionator = require('optionator')({
     options: [{
-      option: 'filename',
-      alias: 'f',
+      option: 'image-base',
+      alias: 'i',
       type: 'String',
       description: 'base of filename',
+      required: false
+    }, {
+      option: 'num-timesteps',
+      alias: 't',
+      type: 'String',
+      description: 'num time steps',
       required: true
     }, {
-      option: 'process' ,
-      alias: 'p',
+      option: 'num-samples',
+      alias: 's',
       type: 'String',
-      description: 'child process',
-      required: false
+      description: 'num time steps',
+      required: true
+    }, {
+      option: 'output-base',
+      alias: 'o',
+      type: 'String',
+      description: 'base of json output',
+      required: true
     }]
   });
-  // process invalid optiosn
+  // process invalid options
   try {
       var args = optionator.parseArgv(process.argv);
   } catch(e) {
@@ -304,30 +266,7 @@ if (!_isBrowser) {
       process.exit(1)
   }
 
-  var input = process.stdin;
-  var output = process.stdout;
-  if (args.process) {
-    var tokens = args.process.split(' ');
-    var child = child_process.spawn(tokens[0], tokens.splice(1));
-    input = child.stdout;
-    output = child.stdin;
-    var child_err = child.stderr;
+  for (var idx = 0; idx < args.numSamples; ++idx) {
+    run(args.numTimesteps, args.outputBase, idx, args.imageBase);
   }
-
-  var rl_err = readline.createInterface({
-    input: child_err,
-    terminal: false
-  });
-
-  rl_err.on('line', (msg) => {
-    console.log(msg);
-  });
-
-  var rl = readline.createInterface({
-    input: input,
-    output: output,
-    terminal: false
-  });
-
-  runFromCommandLine(args.filename);
 }
