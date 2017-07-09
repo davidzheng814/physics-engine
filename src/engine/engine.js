@@ -29,15 +29,38 @@ var Engine = Matter.Engine,
   Composite = Matter.Composite,
   Body = Matter.Body,
   Vector = Matter.Vector,
+  Events = Matter.Events,
   Bodies = Matter.Bodies;
 
 var method = Simulator.prototype;
 
+var logger = function()
+{
+    var oldConsoleLog = null;
+    var pub = {};
+
+    pub.enableLogger =  function enableLogger() 
+                        {
+                            if(oldConsoleLog == null)
+                                return;
+
+                            console.log = oldConsoleLog;
+                        };
+
+    pub.disableLogger = function disableLogger()
+                        {
+                            oldConsoleLog = console.log;
+                            console.log = function() {};
+                        };
+
+    return pub;
+}();
+
 function Simulator(elt, num_bodies, width, height) {
   this.elt = elt || null;
   this.num_bodies = num_bodies || 2;
-  this.width = width || 350;
-  this.height = height || 350;
+  this.width = width || 500;
+  this.height = height || 500;
   this.maxVel = 25;
   this.init();
 }
@@ -58,6 +81,7 @@ method.init = function () {
       }
     });
   } else {
+    logger.disableLogger();
     var pcanvas = PImage.make(this.width, this.height);
     pcanvas.style = {}  
     var render = this.render = Render.create({
@@ -70,6 +94,7 @@ method.init = function () {
     this.render.options.width = this.width;
     this.render.canvas.height = this.height;
     this.render.canvas.width = this.width;
+    logger.enableLogger();
   }
 
   var renderOptions = this.render.options;
@@ -105,6 +130,21 @@ method.init = function () {
   // add all of the bodies to the world
   World.add(engine.world, this.walls);
   World.add(engine.world, this.bodies);
+
+  this.hasCollision = false;
+  this.firstCollision = -1;
+  Events.on(this.engine, 'collisionStart', (event) => {
+    var pairs = event.pairs;
+    for (var i = 0; i < pairs.length; ++i) {
+      var pair = pairs[i];
+      if (pair.bodyA.label == 'Circle Body' && pair.bodyB.label == 'Circle Body') {
+        if (!this.hasCollision) {
+          this.hasCollision = true;
+          this.firstCollision = this.step;
+        }
+      }
+    }
+  });
 }
 
 method.runEngine = function () {
@@ -178,16 +218,17 @@ method.generateObjects = function () {
     var body = Bodies.circle(x, y, radius, config);
 
     if (i == 0) {
-      var mass = 2 + Math.random() * 6; // uniform over [2,8]
+      var mass = 2 + Math.random() * 10; // uniform over [2,12]
       Body.setMass(body, mass);
     } else {
-      Body.setMass(body, 4);
+      var mass = 2 + Math.random() * 10; // uniform over [2,12]
+      Body.setMass(body, 7);
     }
 
     Body.setInertia(body, Infinity);
 
-    var vel_x = 10 + Math.random() * 8;
-    var vel_y = 10 + Math.random() * 8;
+    var vel_x = -15 + Math.random() * 30;
+    var vel_y = -15 + Math.random() * 30;
     Body.setVelocity(body, {x: vel_x, y:vel_y});
 
     // add body and position
@@ -199,18 +240,16 @@ method.generateObjects = function () {
 function getJsonState(simulator) {
   // extract position/velocity/mass
   return {
-    pos: simulator.bodies.map(obj => {
-      x:obj.position.x / simulator.width, y:obj.position.y / simulator.height}),
-    vel: simulator.bodies.map(obj => {
-      x:obj.velocity.x / simulator.maxVel, y:obj.velocity.y / simulator.maxVel}),
+    pos: simulator.bodies.map(obj => {return {
+      x:obj.position.x / simulator.width, y:obj.position.y / simulator.height}}),
+    vel: simulator.bodies.map(obj => {return {
+      x:obj.velocity.x / simulator.maxVel, y:obj.velocity.y / simulator.maxVel}}),
   }
 }
 
 function writeToFile(data, outputFile) {
   text = JSON.stringify(data);
-  fs.writeFile(outputFile, text, function (err) {
-    if (err) { return console.log(err) };
-  });
+  fs.writeFileSync(outputFile, text);
 }
 
 function run(numSteps, outputBase, idx, imageBase) {
@@ -219,6 +258,7 @@ function run(numSteps, outputBase, idx, imageBase) {
   var states = [];
   var data = {states: states, masses:simulator.bodies.map(x => x.mass)};
   for (var i = 0; i < numSteps; ++i) {
+    simulator.step = i;
     simulator.runEngineStep();
     if (imageBase) {
       simulator.runRenderStep(imageBase+'_'+idx+'_'+i+'.png');
@@ -227,6 +267,11 @@ function run(numSteps, outputBase, idx, imageBase) {
     states.push(state);
   }
   writeToFile(data, outputBase+'_'+idx+'.json');
+
+  return {
+    hasCollision: simulator.hasCollision,
+    firstCollision: simulator.firstCollision
+  };
 }
 
 if (!_isBrowser) {
@@ -240,14 +285,14 @@ if (!_isBrowser) {
     }, {
       option: 'num-timesteps',
       alias: 't',
-      type: 'String',
+      type: 'Int',
       description: 'num time steps',
       required: true
     }, {
-      option: 'num-samples',
-      alias: 's',
-      type: 'String',
-      description: 'num time steps',
+      option: 'num-groups',
+      alias: 'n',
+      type: 'Int',
+      description: 'num groups',
       required: true
     }, {
       option: 'output-base',
@@ -266,7 +311,14 @@ if (!_isBrowser) {
       process.exit(1)
   }
 
-  for (var idx = 0; idx < args.numSamples; ++idx) {
-    run(args.numTimesteps, args.outputBase, idx, args.imageBase);
+  var count = 0;
+  var tot = 0;
+  for (var idx = 0; idx < args.numGroups; ++idx) {
+    res = run(args.numTimesteps, args.outputBase, idx, args.imageBase);
+    if (!res.hasCollision) {
+      --idx;
+    } else {
+      console.log(idx);
+    }
   }
 }

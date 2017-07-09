@@ -40,6 +40,7 @@ if __name__ == '__main__':
 
     files = glob.glob(args.input_dir + '/*.json')
     for input_file in files:
+        print input_file
         output_file = os.path.join(args.output_dir, os.path.splitext(os.path.basename(input_file))[0])
         convert_to_npz(input_file, output_file)
 
