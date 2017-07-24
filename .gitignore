@@ -83,7 +83,9 @@ ENV/
 # Rope project settings
 .ropeproject
 
-src/engine/node_modules/
-src/ckpts/
-src/logs/
-src/images/
+*.swp
+*.tar.gz
+images/
+jsons/
+training/
+engine/node_modules/
