@@ -4,16 +4,6 @@ var colors = [
   'blue', 'red', 'green', '#ffff00', 'black', 'orange'
 ]
 
-var ACTIONS = {
-  LEFT: 'LEFT',
-  RIGHT: 'RIGHT',
-  UP: 'UP',
-  DOWN: 'DOWN',
-  NONE: 'NONE',
-  STOP: 'STOP',
-  END: 'END'
-}
-
 if (!_isBrowser) {
   var Matter = require('matter-js');
   var PImage = require('pureimage');
@@ -34,31 +24,21 @@ var Engine = Matter.Engine,
 
 var method = Simulator.prototype;
 
-var logger = function()
-{
-    var oldConsoleLog = null;
-    var pub = {};
-
-    pub.enableLogger =  function enableLogger() 
-                        {
-                            if(oldConsoleLog == null)
-                                return;
-
-                            console.log = oldConsoleLog;
-                        };
-
-    pub.disableLogger = function disableLogger()
-                        {
-                            oldConsoleLog = console.log;
-                            console.log = function() {};
-                        };
-
-    return pub;
-}();
+var oldConsoleLog = null;
+var logger = {
+  enableLogger: function () {
+     if(oldConsoleLog == null) return;
+     console.log = oldConsoleLog;
+  }, 
+  disableLogger: function () {
+    oldConsoleLog = console.log;
+    console.log = function() {};
+  }
+};
 
 function Simulator(elt, num_bodies, width, height) {
   this.elt = elt || null;
-  this.num_bodies = num_bodies || 2;
+  this.num_bodies = num_bodies || 3;
   this.width = width || 500;
   this.height = height || 500;
   this.maxVel = 25;
@@ -68,6 +48,7 @@ function Simulator(elt, num_bodies, width, height) {
 method.init = function () {
   var engine = this.engine = Engine.create();
   engine.world.gravity.y = 0;
+  engine.world.gravity.x = 0;
 
   if (_isBrowser) {
     var render = this.render = Render.create({
@@ -217,11 +198,10 @@ method.generateObjects = function () {
     }};
     var body = Bodies.circle(x, y, radius, config);
 
-    if (i == 0) {
+    if (i <= 1) {
       var mass = 2 + Math.random() * 10; // uniform over [2,12]
       Body.setMass(body, mass);
     } else {
-      var mass = 2 + Math.random() * 10; // uniform over [2,12]
       Body.setMass(body, 7);
     }
 
@@ -254,6 +234,7 @@ function writeToFile(data, outputFile) {
 
 function run(numSteps, outputBase, idx, imageBase) {
   var simulator = new Simulator();
+  console.log(simulator.bodies.map(x => x.mass));
 
   var states = [];
   var data = {states: states, masses:simulator.bodies.map(x => x.mass)};
@@ -315,10 +296,6 @@ if (!_isBrowser) {
   var tot = 0;
   for (var idx = 0; idx < args.numGroups; ++idx) {
     res = run(args.numTimesteps, args.outputBase, idx, args.imageBase);
-    if (!res.hasCollision) {
-      --idx;
-    } else {
-      console.log(idx);
-    }
+    console.log(idx);
   }
 }

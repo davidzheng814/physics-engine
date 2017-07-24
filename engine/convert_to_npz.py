@@ -7,30 +7,24 @@ import glob
 parser = argparse.ArgumentParser('Generate Physics Training Data')
 parser.add_argument('--input-dir', type=str, default='../jsons/')
 parser.add_argument('--output-dir', type=str, default='../training/')
-parser.add_argument('--frames', type=int, default=4)
 
 args = parser.parse_args()
 
-def get_obj_state(state):
-    return [state['pos'][0]['x'], state['pos'][0]['y'],
-            state['vel'][0]['x'], state['vel'][0]['y'],
-            state['pos'][1]['x'], state['pos'][1]['y'],
-            state['vel'][1]['x'], state['vel'][1]['y']]
+def get_obj_state(state, ind):
+    return [state['pos'][ind]['x'], state['pos'][ind]['y'],
+            state['vel'][ind]['x'], state['vel'][ind]['y']]
 
 def convert_to_npz(input_file, output_file):
     with open(input_file) as f:
         data = json.loads(f.read())
 
     states = data['states']
-    obj_states = [get_obj_state(x) for x in states]
+    x = [[get_obj_state(state, obj_ind) for obj_ind in range(len(state['pos']))] 
+         for state in states]
 
-    # (num_samples, num_frames, obj_states (pos1, vel1, pos2, vel2))
-    x = []
-    for t in range(args.frames, len(obj_states) + 1):
-        x.append(obj_states[t-args.frames:t])
-
+    # (num_samples, n_objects, (posx, posy, velx, vely))
     x = np.array(x)
-    y = np.array(data['masses'][0])
+    y = np.array(data['masses'])
 
     np.savez(output_file, x=x, y=y)
 
