@@ -4,6 +4,10 @@ var colors = [
   'blue', 'red', 'green', '#ffff00', 'black', 'orange'
 ]
 
+var extra_colors = [
+  '#add8e6', '#fca1a1', '#a1fca7', '#ffff00', 'black', 'orange'
+]
+
 if (!_isBrowser) {
   var Matter = require('matter-js');
   var PImage = require('pureimage');
@@ -36,16 +40,16 @@ var logger = {
   }
 };
 
-function Simulator(elt, num_bodies, width, height) {
-  this.elt = elt || null;
-  this.num_bodies = num_bodies || 3;
-  this.width = width || 500;
-  this.height = height || 500;
+function Simulator(extra_objs=false) {
+  this.elt = null;
+  this.num_bodies = 3;
+  this.width = 512;
+  this.height = 512;
   this.maxVel = 25;
-  this.init();
+  this.init(extra_objs);
 }
 
-method.init = function () {
+method.init = function (extra_objs) {
   var engine = this.engine = Engine.create();
   engine.world.gravity.y = 0;
   engine.world.gravity.x = 0;
@@ -88,7 +92,7 @@ method.init = function () {
   renderOptions.showCollisions = false;
   renderOptions.showAxes = false;
   renderOptions.showPositions = false;
-  renderOptions.showAngleIndicator = false;
+  renderOptions.showAngleIndicator = true;
   renderOptions.showIds = false;
   renderOptions.showShadows = false;
   renderOptions.showVertexNumbers = false;
@@ -106,44 +110,34 @@ method.init = function () {
     Bodies.rectangle(-thickness/2., this.height/2., thickness, this.height, wall_config) // left
   ];
 
+  if (extra_objs) {
+    this.generateObjects(true);
+    World.add(engine.world, this.extra_bodies);
+  }
+
   this.generateObjects();
-
-  // add all of the bodies to the world
-  World.add(engine.world, this.walls);
   World.add(engine.world, this.bodies);
+  World.add(engine.world, this.walls);
 
-  this.hasCollision = false;
-  this.firstCollision = -1;
+  this.collisions = [];
+  var getBodyInd = (x) => parseInt(x.label.split(" ")[1]);
   Events.on(this.engine, 'collisionStart', (event) => {
     var pairs = event.pairs;
     for (var i = 0; i < pairs.length; ++i) {
       var pair = pairs[i];
-      if (pair.bodyA.label == 'Circle Body' && pair.bodyB.label == 'Circle Body') {
-        if (!this.hasCollision) {
-          this.hasCollision = true;
-          this.firstCollision = this.step;
-        }
+      if (pair.bodyA.label.startsWith('Circle') &&
+        pair.bodyB.label.startsWith('Circle')) {
+        var inds = [getBodyInd(pair.bodyA), getBodyInd(pair.bodyB)];
+        inds.sort();
+        this.collisions.push([this.step, inds]);
       }
     }
   });
 }
 
-method.runEngine = function () {
-  if (_isBrowser) {
-    setInterval(() => {
-      this.clearActions();
-      Engine.update(this.engine, 1000 / 200);
-    }, 50);
-  } else {
-    while (true) {
-      Engine.update(this.engine, 1000 / 60);
-    }
-  }
-}
-
 method.runEngineStep = function () {
   if (!_isBrowser) {
-    Engine.update(this.engine, 1000 / 60);
+    Engine.update(this.engine, 1000 / 120);
   }
 }
 
@@ -174,19 +168,28 @@ function euc_dist(p1, p2) {
     return Math.sqrt(x2 + y2);
 }
 
-method.generateObjects = function () {
-  var boundRadius = 75;
-  var radius = 50;
-  this.bodies = [];
-  this.positions = [];
+method.generateObjects = function (extra_objs=false) {
+  var radius = 70.;
+  var padding = 0.1 * this.width;
+  if (extra_objs) {
+    this.extra_bodies = [];
+    this.extra_positions = [];
+    var bodies = this.extra_bodies;
+    var positions = this.extra_positions;
+  } else {
+    this.bodies = [];
+    this.positions = [];
+    var bodies = this.bodies;
+    var positions = this.positions;
+  }
   for (var i = 0; i < this.num_bodies; ++i) {
     var x, y;
     while (true) { // generates an non-overlapping position. 
-      x = Math.round(radius + Math.random() * (this.width - 2 * radius));
-      y = Math.round(radius + Math.random() * (this.height - 2 * radius));
+      x = Math.round(padding + Math.random() * (this.width - 2 * padding));
+      y = Math.round(padding + Math.random() * (this.height - 2 * padding));
       var success = true;
-      for (var j = 0; j < this.bodies.length; ++j) {
-        if (euc_dist(this.positions[j], [x, y]) <= 2 * boundRadius) {
+      for (var j = 0; j < bodies.length; ++j) {
+        if (euc_dist(positions[j], [x, y]) <= 2.5 * radius) {
           success = false;
           break;
         }
@@ -194,26 +197,22 @@ method.generateObjects = function () {
       if (success) break;
     }
     var config = { restitution: 1.00, friction:0, frictionAir: 0, frictionStatic:0, render: {
-      fillStyle: colors[i],
+      fillStyle: extra_objs ? extra_colors[i] : colors[i],
     }};
     var body = Bodies.circle(x, y, radius, config);
+    Body.set(body, 'label', 'Circle '+i);
 
-    if (i <= 1) {
-      var mass = 2 + Math.random() * 10; // uniform over [2,12]
-      Body.setMass(body, mass);
-    } else {
-      Body.setMass(body, 7);
-    }
-
+    var mass = 2 + Math.random() * 10; // uniform over [2,12]
+    Body.setMass(body, mass);
     Body.setInertia(body, Infinity);
 
-    var vel_x = -15 + Math.random() * 30;
-    var vel_y = -15 + Math.random() * 30;
+    var vel_x = -9 + Math.random() * 18;
+    var vel_y = -9 + Math.random() * 18;
     Body.setVelocity(body, {x: vel_x, y:vel_y});
 
     // add body and position
-    this.positions.push([x, y]);
-    this.bodies.push(body);
+    positions.push([x, y]);
+    bodies.push(body);
   }
 }
 
@@ -232,12 +231,13 @@ function writeToFile(data, outputFile) {
   fs.writeFileSync(outputFile, text);
 }
 
-function run(numSteps, outputBase, idx, imageBase) {
+function simulate(numSteps, outputBase, idx, imageBase) {
   var simulator = new Simulator();
-  console.log(simulator.bodies.map(x => x.mass));
+  console.log("Masses:", simulator.bodies.map(x => x.mass));
 
   var states = [];
-  var data = {states: states, masses:simulator.bodies.map(x => x.mass)};
+  var data = {states: states, masses:simulator.bodies.map(x => x.mass), collisions:simulator.collisions};
+  console.log("Num Steps:", numSteps);
   for (var i = 0; i < numSteps; ++i) {
     simulator.step = i;
     simulator.runEngineStep();
@@ -247,12 +247,32 @@ function run(numSteps, outputBase, idx, imageBase) {
     var state = getJsonState(simulator);
     states.push(state);
   }
-  writeToFile(data, outputBase+'_'+idx+'.json');
+  return data;
+}
 
-  return {
-    hasCollision: simulator.hasCollision,
-    firstCollision: simulator.firstCollision
-  };
+function render(data, imageBase) {
+  var simulator = new Simulator(true);
+  for (var i = 0; i < data.states.length; ++i) {
+    for (var j = 0; j < simulator.bodies.length; ++j) {
+      var pos = data.states[i].pos[j];
+      pos['x'] *= simulator.width;
+      pos['y'] *= simulator.height;
+      Body.setPosition(simulator.bodies[j], data.states[i].pos[j]);
+
+      var pos = data.true_states[i].pos[j];
+      pos['x'] *= simulator.width;
+      pos['y'] *= simulator.height;
+      Body.setPosition(simulator.extra_bodies[j], data.true_states[i].pos[j]);
+    }
+    simulator.runRenderStep(imageBase+'_'+i+'.png')
+  }
+}
+
+function isValidSim(data) {
+  function onlyUnique(value, index, self) { 
+        return self.indexOf(value) === index;
+  }
+  return data.collisions.filter(x => x[0] >= 50).filter(onlyUnique).length >= 2;
 }
 
 if (!_isBrowser) {
@@ -268,19 +288,24 @@ if (!_isBrowser) {
       alias: 't',
       type: 'Int',
       description: 'num time steps',
-      required: true
+      required: false
     }, {
       option: 'num-groups',
       alias: 'n',
       type: 'Int',
       description: 'num groups',
-      required: true
+      required: false
     }, {
       option: 'output-base',
       alias: 'o',
       type: 'String',
       description: 'base of json output',
-      required: true
+      required: false
+    }, {
+      option: 'state-file',
+      type: 'String',
+      description: 'file of states to render',
+      required: false
     }]
   });
   // process invalid options
@@ -292,10 +317,21 @@ if (!_isBrowser) {
       process.exit(1)
   }
 
-  var count = 0;
-  var tot = 0;
-  for (var idx = 0; idx < args.numGroups; ++idx) {
-    res = run(args.numTimesteps, args.outputBase, idx, args.imageBase);
-    console.log(idx);
+  if (args.stateFile) {
+    fs.readFile(args.stateFile, function(err, data) {
+      if (err) return console.log(err);
+      data = JSON.parse(data);
+      render(data, args.imageBase);
+
+    });
+  } else {
+    for (var idx = 0; idx < args.numGroups; ++idx) {
+      var data = simulate(args.numTimesteps, args.outputBase, idx, args.imageBase);
+      if (isValidSim(data)) {
+        writeToFile(data, args.outputBase+'_'+idx+'.json');
+      } else {
+        --idx;
+      }
+    }
   }
 }
