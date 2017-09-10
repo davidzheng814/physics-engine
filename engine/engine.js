@@ -40,9 +40,12 @@ var logger = {
   }
 };
 
+num_bodies = 3;
+radius = 70.;
+
 function Simulator(extra_objs=false) {
   this.elt = null;
-  this.num_bodies = 3;
+  this.num_bodies = num_bodies;
   this.width = 512;
   this.height = 512;
   this.maxVel = 25;
@@ -169,8 +172,7 @@ function euc_dist(p1, p2) {
 }
 
 method.generateObjects = function (extra_objs=false) {
-  var radius = 70.;
-  var padding = 0.1 * this.width;
+  var padding = 0.2 * this.width;
   if (extra_objs) {
     this.extra_bodies = [];
     this.extra_positions = [];
@@ -202,7 +204,14 @@ method.generateObjects = function (extra_objs=false) {
     var body = Bodies.circle(x, y, radius, config);
     Body.set(body, 'label', 'Circle '+i);
 
-    var mass = 2 + Math.random() * 10; // uniform over [2,12]
+    if (i == 0) {
+      // var mass = 5;
+      var mass = 7;
+    } else {
+      // var mass = 5 * Math.pow(2, -2 + Math.random() * 4);
+      var mass = 2 + Math.random() * 10;
+    }
+
     Body.setMass(body, mass);
     Body.setInertia(body, Infinity);
 
@@ -233,11 +242,12 @@ function writeToFile(data, outputFile) {
 
 function simulate(numSteps, outputBase, idx, imageBase) {
   var simulator = new Simulator();
-  console.log("Masses:", simulator.bodies.map(x => x.mass));
+  console.log("Ind:", idx, "Masses:", simulator.bodies.map(x => x.mass));
 
   var states = [];
   var data = {states: states, masses:simulator.bodies.map(x => x.mass), collisions:simulator.collisions};
   console.log("Num Steps:", numSteps);
+
   for (var i = 0; i < numSteps; ++i) {
     simulator.step = i;
     simulator.runEngineStep();
@@ -246,7 +256,19 @@ function simulate(numSteps, outputBase, idx, imageBase) {
     }
     var state = getJsonState(simulator);
     states.push(state);
+
+    for (var j = 0; j < simulator.bodies.length; ++j) {
+      for (var k = j+1; k < simulator.bodies.length; ++k) {
+        var dist = euc_dist(
+          [simulator.bodies[j].position.x, simulator.bodies[j].position.y],
+          [simulator.bodies[k].position.x, simulator.bodies[k].position.y]);
+        if (dist < 2 * radius - 5) {
+          return false;
+        }
+      }
+    }
   }
+
   return data;
 }
 
@@ -272,7 +294,7 @@ function isValidSim(data) {
   function onlyUnique(value, index, self) { 
         return self.indexOf(value) === index;
   }
-  return data.collisions.filter(x => x[0] >= 50).filter(onlyUnique).length >= 2;
+  return data.collisions.filter(x => x[0] < 50).filter(onlyUnique).length >= num_bodies - 1;
 }
 
 if (!_isBrowser) {
@@ -327,7 +349,7 @@ if (!_isBrowser) {
   } else {
     for (var idx = 0; idx < args.numGroups; ++idx) {
       var data = simulate(args.numTimesteps, args.outputBase, idx, args.imageBase);
-      if (isValidSim(data)) {
+      if (data && isValidSim(data)) {
         writeToFile(data, args.outputBase+'_'+idx+'.json');
       } else {
         --idx;
