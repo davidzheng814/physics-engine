@@ -10,12 +10,15 @@ var extra_colors = [
 
 if (!_isBrowser) {
   var Matter = require('matter-js');
+  var MatterAttractors = require('matter-attractors');
   var PImage = require('pureimage');
   var fs = require('fs');
   var path = require('path');
   var readline = require('readline');
   var child_process = require('child_process');
+  Matter.use(MatterAttractors);
 }
+
 
 var Engine = Matter.Engine,
   Render = Matter.Render,
@@ -41,7 +44,7 @@ var logger = {
 };
 
 numBodies = 3;
-radius = 70.;
+radius = 35.;
 
 function Simulator(extra_objs=false) {
   this.elt = null;
@@ -96,7 +99,7 @@ method.init = function (extra_objs) {
   renderOptions.showCollisions = false;
   renderOptions.showAxes = false;
   renderOptions.showPositions = false;
-  renderOptions.showAngleIndicator = true;
+  renderOptions.showAngleIndicator = false;
   renderOptions.showIds = false;
   renderOptions.showShadows = false;
   renderOptions.showVertexNumbers = false;
@@ -105,15 +108,6 @@ method.init = function (extra_objs) {
   renderOptions.showSeparations = false;
   renderOptions.background = '#fff';
 
-  var thickness = 50;
-  var wall_config = { isStatic: true, restitution: 1, mass: Infinity};
-  this.walls = [
-    Bodies.rectangle(this.width/2., -thickness/2., this.width, thickness, wall_config), // top
-    Bodies.rectangle(this.width/2., this.height+thickness/2., this.width, thickness, wall_config), // bottom
-    Bodies.rectangle(this.width+thickness/2., this.height/2., thickness, this.height, wall_config), // right
-    Bodies.rectangle(-thickness/2., this.height/2., thickness, this.height, wall_config) // left
-  ];
-
   if (extra_objs) {
     this.generateObjects(true);
     World.add(engine.world, this.extra_bodies);
@@ -121,46 +115,19 @@ method.init = function (extra_objs) {
 
   this.generateObjects();
   World.add(engine.world, this.bodies);
-  World.add(engine.world, this.walls);
 
-  this.collisions = [];
-  var getBodyInd = (x) => parseInt(x.label.split(" ")[1]);
-  // Events.on(this.engine, 'collisionStart', (event) => {
-  //   var pairs = event.pairs;
-  //   for (var i = 0; i < pairs.length; ++i) {
-  //     var pair = pairs[i];
-  //     if (pair.bodyA.label.startsWith('Circle') &&
-  //       pair.bodyB.label.startsWith('Circle')) {
-  //       var inds = [getBodyInd(pair.bodyA), getBodyInd(pair.bodyB)];
-  //       inds.sort();
-  //       this.collisions.push([this.step, inds]);
-  //     }
-  //   }
-  // });
 }
 
 method.runEngineStep = function () {
   if (!_isBrowser) {
-    var vels0 = this.bodies.map((x) => ({x:x.velocity.x, y:x.velocity.y}));
-    Engine.update(this.engine, 1000 / 120);
-    var vels_f = this.bodies.map((x) => ({x:x.velocity.x, y:x.velocity.y}));
-    var collided = [];
-    for (var i = 0; i < numBodies; ++i) {
-      if (Math.abs(Math.abs(vels_f[i].x) - Math.abs(vels0[i].x)) >= 1e-7 &&
-          Math.abs(Math.abs(vels_f[i].y) - Math.abs(vels0[i].y)) >= 1e-7) {
-        collided.push(true);
-      } else {
-        collided.push(false);
-      }
-    }
-
-    for (var i = 0; i < numBodies; ++i) {
-      for (var j = i+1; j < numBodies; ++j) {
-        if (collided[i] && collided[j]) {
-          this.collisions.push([this.step, [i, j]]);
-        }
-      }
-    }
+    var center = {x:this.width/2, y:this.height/2};
+    // for (var body of this.bodies) {
+    //   var force = Vector.sub(body.position, center);
+    //   var mag = Vector.magnitude(force);
+    //   force = Vector.mult(force, -1e-7 * mag);
+    //   Body.applyForce(body, body.position, force);
+    // }
+    Engine.update(this.engine, 1000 / 240);
   }
 }
 
@@ -185,12 +152,6 @@ method.runRender = function () {
   }
 }
 
-function euc_dist(p1, p2) {
-    var x2 = Math.pow(p1[0] - p2[0], 2),
-        y2 = Math.pow(p1[1] - p2[1], 2);
-    return Math.sqrt(x2 + y2);
-}
-
 method.generateObjects = function (extra_objs=false) {
   if (extra_objs) {
     this.extra_bodies = [];
@@ -201,21 +162,42 @@ method.generateObjects = function (extra_objs=false) {
   }
 
   for (var i = 0; i < this.numBodies; ++i) {
-    var config = { restitution: 1.00, friction:0, frictionAir: 0, frictionStatic:0, render: {
-      fillStyle: extra_objs ? extra_colors[i] : colors[i],
-    }};
+    var config = { restitution: 1.00, friction:0, frictionAir: 0, frictionStatic:0, 
+      render: {
+        fillStyle: extra_objs ? extra_colors[i] : colors[i],
+      },
+      collisionFilter: {
+        group: -1,
+      },
+      plugin: {
+        attractors: [
+          function(bodyA, bodyB) {
+            var distx = (bodyB.position.x - bodyA.position.x);
+            var disty = (bodyB.position.y - bodyA.position.y);
+            var dist = Math.sqrt(distx * distx + disty * disty);
+            var force = {
+              x: bodyA.charge * bodyB.charge * distx / Math.pow(dist, 3),
+              y: bodyA.charge * bodyB.charge * disty / Math.pow(dist, 3),
+            }
+
+            var maxForce = .01;
+            if (Vector.magnitude(force) > maxForce) {
+              force = Vector.mult(force, maxForce / Vector.magnitude(force));
+            }
+
+            Body.applyForce(bodyA, bodyA.position, force);
+            Body.applyForce(bodyB, bodyB.position, Vector.neg(force));
+          }
+        ]
+      }
+    };
+
     var body = Bodies.circle(0, 0, radius, config);
+
+    body.charge = uniform(10, 40);
+
     Body.set(body, 'label', 'Circle '+i);
-
-    // if (i == 0) {
-      // var mass = 5;
-    // var mass = 7;
-      // } else {
-      // var mass = 5 * Math.pow(2, -2 + Math.random() * 4);
-    var mass = 2 + Math.random() * 10;
-    // }
-
-    Body.setMass(body, mass);
+    Body.setMass(body, 1);
     Body.setInertia(body, Infinity);
 
     // add body and position
@@ -223,30 +205,60 @@ method.generateObjects = function (extra_objs=false) {
   }
 }
 
+function uniform(a, b) {
+  return a + Math.random() * (b - a);
+}
+
 method.resetState = function() {
   var padding = 0.2 * this.width;
-  var positions = [];
   this.step = 0;
+  var positions = [];
+  var totalPos = {x:0, y:0};
+  var center = {x:this.width/2, y:this.height/2};
+
+  // generate initial positions
   for (var i = 0; i < this.numBodies; ++i) {
-    var x, y;
     while (true) { // generates an non-overlapping position. 
-      x = Math.round(padding + Math.random() * (this.width - 2 * padding));
-      y = Math.round(padding + Math.random() * (this.height - 2 * padding));
+      var x = Math.round(uniform(padding, this.width - padding));
+      var y = Math.round(uniform(padding, this.height - padding));
+      var pos = {x:x, y:y};
       var success = true;
       for (var j = 0; j < positions.length; ++j) {
-        if (euc_dist(positions[j], [x, y]) <= 2.5 * radius) {
+        if (Vector.magnitude(Vector.sub(positions[j], pos)) <= 2.5 * radius) {
           success = false;
           break;
         }
       }
-      if (success) break;
+      if (success) {
+        positions.push(pos);
+        totalPos = Vector.add(totalPos, pos);
+        break;
+      }
     }
-    positions.push([x, y]);
-    Body.setPosition(this.bodies[i], {x:x, y:y});
+  }
 
-    var vel_x = -9 + Math.random() * 18;
-    var vel_y = -9 + Math.random() * 18;
-    Body.setVelocity(this.bodies[i], {x: vel_x, y:vel_y});
+  // set adjusted positions.
+  var adjustPos = Vector.sub(Vector.div(totalPos, this.numBodies), center);
+  for (var i = 0; i < this.numBodies; ++i) {
+    Body.setPosition(this.bodies[i], Vector.sub(positions[i], adjustPos));
+  }
+
+  // generate initial velocities
+  var vels = [];
+  var totalVel = {x:0, y:0};
+  for (var i = 0; i < this.numBodies; ++i) {
+    var vel = Vector.normalise(Vector.perp(Vector.sub(this.bodies[i].position, center)));
+    vel = Vector.mult(vel, uniform(5, 10));
+    vel = Vector.add(vel, {x:uniform(-1, 1), y:uniform(-1, 1)});
+
+    totalVel = Vector.add(totalVel, vel);
+
+    vels.push(vel);
+  }
+
+  var adjustVel = Vector.div(totalVel, this.numBodies);
+  for (var i = 0; i < this.numBodies; ++i) {
+    Body.setVelocity(this.bodies[i], Vector.sub(vels[i], adjustVel));
   }
 }
 
@@ -269,12 +281,12 @@ function simulate(numEncodeSteps, numPredSteps, outputBase, idx, imageBase) {
   var simulator = new Simulator();
   simulator.resetState();
 
-  console.log("Ind:", idx, "Masses:", simulator.bodies.map(x => x.mass));
+  console.log("Ind:", idx, "Charges:", simulator.bodies.map(x => x.charge));
 
   var enc_states = [];
   var data = {
     enc_states: enc_states,
-    masses:simulator.bodies.map(x => x.mass),
+    masses:simulator.bodies.map(x => x.charge),
     enc_collisions:simulator.collisions,
     all_states:[],
     all_collisions:[],
@@ -292,38 +304,22 @@ function simulate(numEncodeSteps, numPredSteps, outputBase, idx, imageBase) {
     ++simulator.step;
   }
 
-  if (!isValidEncode(data.enc_collisions)) {
-    return false;
-  };
-
-  for (var i = 0; i < numBodies; ++i) {
-    for (var j = i+1; j < numBodies; ++j) {
-      var start_frame_count = frame_count;
-      while (true) {
-        simulator.collisions = [];
-        simulator.resetState();
-        var states = [];
-        for (var t = 0; t < numPredSteps; ++t) {
-          simulator.runEngineStep();
-          if (imageBase) {
-            simulator.runRenderStep(imageBase+'_'+idx+'_'+frame_count+'.png');
-            ++frame_count;
-          }
-          var state = getJsonState(simulator);
-          states.push(state);
-          ++simulator.step;
-        }
-
-        if (isValidPred(simulator.collisions, i, j)) {
-          break;
-        } else {
-          frame_count = start_frame_count;
-        }
-      }
-      data.all_states.push(states);
-      data.all_collisions.push(simulator.collisions);
+  simulator.collisions = [];
+  simulator.resetState();
+  var states = [];
+  for (var t = 0; t < numPredSteps; ++t) {
+    simulator.runEngineStep();
+    if (imageBase) {
+      simulator.runRenderStep(imageBase+'_'+idx+'_'+frame_count+'.png');
+      ++frame_count;
     }
+    var state = getJsonState(simulator);
+    states.push(state);
+    ++simulator.step;
   }
+
+  data.all_states.push(states);
+  data.all_collisions.push(simulator.collisions);
 
   return data;
 }
@@ -346,36 +342,6 @@ function render(data, imageBase) {
   }
 }
 
-function isValidEncode(enc_collisions) {
-  var uniq_col_objs = [];
-  for (var col of enc_collisions) {
-    var col_objs = col[1];
-    var success = true;
-    for (var uniq_col of uniq_col_objs) {
-      if (col_objs[0] == uniq_col[0] && col_objs[1] == uniq_col[1]) {
-        success = false;
-        break;
-      }
-    }
-    if (success) uniq_col_objs.push(col_objs);
-  }
-  return uniq_col_objs.length >= numBodies;
-}
-
-function isValidPred(pred_collisions, i, j) {
-  for (var collision of pred_collisions) {
-    if (collision[0] < 5) continue;
-    if (collision[0] >= args.collisionWindow) {
-      break;
-    }
-
-    if(collision[1][0] == i && collision[1][1] == j) {
-      return true;
-    }
-  }
-  return false;
-}
-
 if (!_isBrowser) {
   var optionator = require('optionator')({
     options: [{
@@ -386,7 +352,7 @@ if (!_isBrowser) {
       required: false
     }, {
       option: 'num-encode-steps',
-      alias: 'e',
+      alias: 't',
       type: 'Int',
       description: 'num encode steps',
       required: false
@@ -395,12 +361,6 @@ if (!_isBrowser) {
       alias: 'p',
       type: 'Int',
       description: 'num pred steps',
-      required: false
-    }, {
-      option: 'collision-window',
-      alias: 'c',
-      type: 'Int',
-      description: 'number of steps in pred before collision needs to happen',
       required: false
     }, {
       option: 'num-groups',
@@ -429,7 +389,7 @@ if (!_isBrowser) {
   });
   // process invalid options
   try {
-    args = optionator.parseArgv(process.argv);
+    var args = optionator.parseArgv(process.argv);
   } catch(e) {
       console.log(optionator.generateHelp());
       console.log(e.message)
