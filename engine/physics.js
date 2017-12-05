@@ -5,6 +5,7 @@ var path = require('path');
 var readline = require('readline');
 var child_process = require('child_process');
 var SpringSimulator = require('./spring');
+var CollisionSimulator = require('./collision');
 var RenderSimulator = require('./model').RenderSimulator;
 var optionator = require('./parser');
 Matter.use(MatterAttractors);
@@ -22,10 +23,9 @@ function generate(args, idx) {
   if (args.physics == 'spring') {
     var simulator = new SpringSimulator(args);
   } else if (args.physics == 'collision') {
-    // var simulator = new CollisionSimulator(args);
+    var simulator = new CollisionSimulator(args);
   }
 
-  simulator.resetState();
 
   var data = {
     encs:simulator.getEncs(),
@@ -33,31 +33,58 @@ function generate(args, idx) {
     ro_states:[],
   };
 
-  // Run observation steps.
-  for (var i = 0; i < args.numObsSteps; ++i) {
-    simulator.nextStep();
-    var state = simulator.getState();
-    data.obs_states.push(state);
+  while (true) {
+    simulator.resetState();
+    // Run observation steps.
+    for (var i = 0; i < args.numObsSteps; ++i) {
+      simulator.nextStep();
+      var state = simulator.getState();
+      data.obs_states.push(state);
 
-    if (args.imageBase) simulator.render(args.imageBase+'_'+idx+'_'+i+'.png');
+      if (args.imageBase) simulator.render(args.imageBase+'_'+idx+'_'+i+'.png');
+    }
+
+    if (simulator.isValidObs()) {
+      break;
+    }
   }
-  if (!simulator.isValidObs()) return false;
+
+  if (args.physics == 'collision') {
+    data.obs_collisions = simulator.collisions;
+  }
 
   // Run rollout steps.
-  simulator.resetState();
-  var run_states = [];
-  for (var t = 0; t < args.numRoSteps; ++t) {
-    simulator.nextStep();
-    var state = simulator.getState();
-    run_states.push(state);
+  while (true) {
+    simulator.resetState();
+    var runStates = [];
+    for (var t = 0; t < args.numRoSteps; ++t) {
+      simulator.nextStep();
+      var state = simulator.getState();
+      runStates.push(state);
 
-    if (args.imageBase) simulator.render(args.imageBase+'_'+idx+'_'+(args.numObsSteps+t)+'.png');
+      if (args.imageBase) simulator.render(args.imageBase+'_'+idx+'_'+(args.numObsSteps+t)+'.png');
+    }
+
+    if (simulator.isValidRo()) {
+      data.ro_states.push(runStates);
+      break;
+    }
   }
-  data.ro_states.push(run_states);
-  if (!simulator.isValidRo()) return false;
+
+  if (args.meanOnly) {
+    simulator.resetState(true);
+    simulator.initEncs(true);
+    var runStates = [];
+    for (var t = 0; t < args.numRoSteps; ++t) {
+      simulator.nextStep();
+      var state = simulator.getState();
+      runStates.push(state);
+    }
+    data.mean_states = [runStates];
+  }
 
   // Return results on success
-  console.log("Ind:", idx, "Encs:", simulator.getEncs());
+  // console.log("Ind:", idx, "Encs:", simulator.getEncs());
   return data;
 }
 
@@ -98,10 +125,20 @@ function main() {
       render(args, data);
     });
   } else { // generate states from scratch.
+    var dataBatch = [];
     for (var idx = args.startIdx; idx < args.numGroups; ++idx) {
+      if (idx % 1000 == 0) console.log("Ind:", idx);
       var data = generate(args, idx);
       if (data) { // Successful run
-        writeToFile(data, args.outputBase+'_'+idx+'.json');
+        if (args.batch) {
+          dataBatch.push(data);
+          if (dataBatch.length == args.batchSize) {
+            writeToFile(data, args.outputBase+'_'+idx+'.json');
+            dataBatch = [];
+          }
+        } else {
+          writeToFile(data, args.outputBase+'_'+idx+'.json');
+        }
       } else { // Unsuccessful run
         --idx;
       }
