@@ -84,7 +84,14 @@ class CollisionSimulator extends Simulator {
     var uniqCollisions = [];
     var uniqCollidedObjs = [];
     for (var col of this.collisions.map(x=>x[1])) {
-      if (!uniqCollisions.includes(col)) uniqCollisions.push(col);
+      var success = true;
+      for (uniqCol of uniqCollisions) {
+        if (uniqCol[0] == col[0] && uniqCol[1] == col[1]) {
+          success = false;
+        }
+        break;
+      }
+      if (success) uniqCollisions.push(col);
       if (!uniqCollidedObjs.includes(col[0])) uniqCollidedObjs.push(col[0]);
       if (!uniqCollidedObjs.includes(col[1])) uniqCollidedObjs.push(col[1]);
     }

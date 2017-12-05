@@ -29,13 +29,13 @@ function generate(args, idx) {
 
   var data = {
     encs:simulator.getEncs(),
-    obs_states: [],
     ro_states:[],
   };
 
+  // Run observation steps.
   while (true) {
     simulator.resetState();
-    // Run observation steps.
+    data.obs_states = [];
     for (var i = 0; i < args.numObsSteps; ++i) {
       simulator.nextStep();
       var state = simulator.getState();
