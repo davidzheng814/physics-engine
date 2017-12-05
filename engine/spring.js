@@ -15,7 +15,17 @@ function uniform(a, b) {
   return a + Math.random() * (b - a);
 }
 
-class SpringSimulator extends Simulator{
+class SpringSimulator extends Simulator {
+  constructor(args) {
+    super(args);
+    this.initEncs();
+    this.initWorld();
+    this.minConstant = args.minConst;
+    this.maxConstant = args.maxConst;
+    this.minDisplacement = args.minDisp;
+    this.maxDisplacement = args.maxDisp;
+  }
+
   applyForce(bodyA, bodyB) {
     var constant = this.constants[bodyA.id][bodyB.id];
     var displacement = this.displacements[bodyA.id][bodyB.id];
@@ -26,7 +36,7 @@ class SpringSimulator extends Simulator{
     Body.applyForce(bodyB, bodyB.position, Vector.neg(force));
   }
 
-  initEncs() {
+  initEncs(meanOnly=false) {
     this.constants = [];
     this.displacements = [];
     for (var i = 0; i < this.numBodies; ++i) {
@@ -42,8 +52,13 @@ class SpringSimulator extends Simulator{
 
     for (var i = 0; i < this.numBodies; ++i) {
       for (var j = i+1; j < this.numBodies; ++j) {
-        var constant = uniform(5e-5, 30e-5);
-        var displacement = uniform(50, 300);
+        var constant = meanOnly 
+          ? (this.minConstant + this.maxConstant) / 2
+          : uniform(this.minConstant, this.maxConstant);
+        var displacement = meanOnly 
+          ? (this.minDisplacement + this.maxDisplacement) / 2
+          : uniform(this.minDisplacement, this.maxDisplacement);
+
         this.constants[i][j] = this.constants[j][i] = constant;
         this.displacements[i][j] = this.displacements[j][i] = displacement;
       }
@@ -70,8 +85,8 @@ class SpringSimulator extends Simulator{
     return false;
   }
 
-  resetState() {
-    super.resetState(true, true);
+  resetState(lastReset=false) {
+    super.resetState(lastReset, true, true);
   }
 }
 

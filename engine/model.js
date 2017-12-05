@@ -24,19 +24,16 @@ function uniform(a, b) {
 
 class Simulator {
   constructor(args) {
-    this.numBodies = args.numBodies; // 3
-    this.width = args.width; // 512 
-    this.height = args.height; // 512
-    this.maxVel = args.maxVel; // 25
-    this.bodyRadius = args.bodyRadius; // 35
+    this.numBodies = args.numBodies;
+    this.width = args.width;
+    this.height = args.height;
+    this.maxVel = args.maxVel;
+    this.bodyRadius = args.bodyRadius; 
 
     this.masses = [];
     for (var i = 0; i < this.numBodies; ++i) this.masses.push(1); // just a default value
 
     this.initEngine();
-    this.initEncs();
-    this.initWorld();
-
     this.renderer = new Renderer(this.engine, this.width, this.height);
   }
 
@@ -48,6 +45,9 @@ class Simulator {
 
   collides() {
     throw "Not Implemented Error" // override
+  }
+
+  applyForce(a, b) {
   }
 
   getNewBody(id, extraObjs=false) {
@@ -84,12 +84,18 @@ class Simulator {
     World.add(this.engine.world, this.bodies);
   }
 
-  initEncs() {
+  initEncs(meanOnly=false) {
     throw "Not Implemented Error";
     // override
   }
 
-  resetPos(isCentered) {
+  resetPos(lastReset, isCentered) {
+    if (lastReset) {
+      for (var i = 0; i < this.numBodies; ++i) {
+        Body.setPosition(this.bodies[i], this.initPos[i]);
+      }
+    }
+
     var padding = 0.2 * this.width;
     var positions = [];
     var totalPos = {x:0, y:0};
@@ -117,14 +123,22 @@ class Simulator {
     }
 
     // set adjusted positions.
-    var adjustPos = isCentered ? Vector.sub(Vector.div(totalPos, this.numBodies), center) : 0;
+    var adjustPos = isCentered ? Vector.sub(Vector.div(totalPos, this.numBodies), center) : {x:0,y:0};
+
+    this.initPos = [];
     for (var i = 0; i < this.numBodies; ++i) {
-      Body.setPosition(this.bodies[i], Vector.sub(positions[i], adjustPos));
+      this.initPos.push(Vector.sub(positions[i], adjustPos));
+      Body.setPosition(this.bodies[i], this.initPos[i]);
     }
   }
 
-  resetVel(zeroMomentum) {
-    // generate initial velocities
+  resetVel(lastReset, zeroMomentum) {
+    if (lastReset) {
+      for (var i = 0; i < this.numBodies; ++i) {
+        Body.setVelocity(this.bodies[i], this.initVel[i]);
+      }
+    }
+
     var vels = [];
     var totalVel = {x:0, y:0};
     for (var i = 0; i < this.numBodies; ++i) {
@@ -133,15 +147,18 @@ class Simulator {
       vels.push(vel);
     }
 
-    var adjustVel = zeroMomentum ? Vector.div(totalVel, this.numBodies) : 0;
+    var adjustVel = zeroMomentum ? Vector.div(totalVel, this.numBodies) : {x:0,y:0};
+    this.initVel = [];
     for (var i = 0; i < this.numBodies; ++i) {
-      Body.setVelocity(this.bodies[i], Vector.sub(vels[i], adjustVel));
+      this.initVel.push(Vector.sub(vels[i], adjustVel));
+      Body.setVelocity(this.bodies[i], this.initVel[i]);
     }
   }
 
-  resetState(isCentered=false, zeroMomentum=false, maxVel=20) {
-    this.resetPos(isCentered);
-    this.resetVel(zeroMomentum);
+  resetState(lastReset=false, isCentered=false, zeroMomentum=false) {
+    this.resetPos(lastReset, isCentered);
+    this.resetVel(lastReset, zeroMomentum);
+
     this.step = 0;
   }
 
