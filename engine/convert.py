@@ -41,7 +41,7 @@ def to_encs(encs_json):
 
 def to_obs_states(obs_states_json):
     obs_x = [[get_obj_state(state, obj_ind) for obj_ind in range(args.num_objects)] 
-              for state in obs_states_json]
+              for state in obs_states_json[-args.num_obs_frames:]]
     obs_x = np.array(obs_x, dtype='f')
 
     return obs_x
@@ -95,7 +95,7 @@ def get_names(json_data):
         return json_data[0].keys()
     return json_data.keys()
 
-def create_dataset(name, array, f):
+def create_dataset(name, array, f, long_names=False):
     DSET_NAME_AND_TYPE = {
         'encs': ('y', 'f'),
         'obs_states': ('obs_x', 'f'),
@@ -105,22 +105,35 @@ def create_dataset(name, array, f):
     }
 
     dset_name, dtype = DSET_NAME_AND_TYPE[name]
+    if long_names:
+        dset_name += '_long'
 
-    f.create_dataset(dset_name, array.shape, dtype=dtype)
-    f[:] = array
+    dset = f.create_dataset(dset_name, array.shape, dtype=dtype)
+    dset[:] = array
 
-def create_datasets(names, arrays, f):
+def create_datasets(names, arrays, f, long_names=False):
     for i, name in enumerate(names):
         array = np.stack([x[i] for x in arrays])
-        create_dataset(name, array, f)
+        create_dataset(name, array, f, long_names=long_names)
 
 if __name__ == '__main__':
     files = glob.glob(args.input_dir + '/*.json')
     arrays = []
     names = get_names(get_json(files[0]))
     for i, input_file in enumerate(files):
+        print(input_file)
         arrays.extend(to_npzs(get_json(input_file), names))
 
+    if args.long_input_dir:
+        long_files = glob.glob(args.long_input_dir + '/*.json')
+        long_arrays = []
+        for i, input_file in enumerate(long_files):
+            print(input_file)
+            long_arrays.extend(to_npzs(get_json(input_file), names))
+
+    print("Creating Dataset")
     with h5py.File(args.output_file, 'w') as f:
         create_datasets(names, arrays, f)
+        if args.long_input_dir:
+            create_datasets(names, long_arrays, f, long_names=True)
 

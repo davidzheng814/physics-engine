@@ -11,11 +11,11 @@ var Engine = Matter.Engine,
   Bodies = Matter.Bodies;
 
 var COLORS = [
-  'blue', 'red', 'green', '#ffff00', 'black', 'orange'
+  'blue', 'red', 'green', '#f76f00', '#8c008c', '#008dc9'
 ];
 
 var EXTRA_COLORS = [
-  '#add8e6', '#fca1a1', '#a1fca7', '#ffff00', 'black', 'orange'
+  '#add8e6', '#fca1a1', '#a1fca7', '#ff8b2d', '#c900c9', '#07b2fc'
 ];
 
 function uniform(a, b) {
@@ -94,6 +94,7 @@ class Simulator {
       for (var i = 0; i < this.numBodies; ++i) {
         Body.setPosition(this.bodies[i], this.initPos[i]);
       }
+      return;
     }
 
     var padding = 0.2 * this.width;
@@ -137,6 +138,7 @@ class Simulator {
       for (var i = 0; i < this.numBodies; ++i) {
         Body.setVelocity(this.bodies[i], this.initVel[i]);
       }
+      return;
     }
 
     var vels = [];
@@ -177,8 +179,8 @@ class Simulator {
 
   getState() {
     return {
-      pos: this.bodies.map(obj => obj.position),
-      vel: this.bodies.map(obj => obj.velocity),
+      pos: this.bodies.map(obj => Vector.clone(obj.position)),
+      vel: this.bodies.map(obj => Vector.clone(obj.velocity)),
     }
   }
 
@@ -192,15 +194,19 @@ class Simulator {
 }
 
 class RenderSimulator extends Simulator {
+  constructor(args) {
+    super(args);
+    this.initWorld();
+  }
+
   initWorld() {
-    super.initWorld();
     this.extraBodies = [];
-    for (var i = 0; i < this.numBodies.length; ++i) {
-      var body = this.getNewBody(i);
+    for (var i = 0; i < this.numBodies; ++i) {
+      var body = this.getNewBody(i, true);
       this.extraBodies.push(body);
     }
-
-    World.add(engine.world, this.extraBodies);
+    World.add(this.engine.world, this.extraBodies);
+    super.initWorld();
   }
 
   collides() {

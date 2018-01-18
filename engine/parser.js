@@ -74,6 +74,10 @@ var default_options = [{
   type: 'Boolean',
   description: 'In addition to a rollout using the true encoding, also perform rollout with mean encoding'
 }, {
+  option: 'analyze-mean',
+  type: 'Boolean',
+  description: 'Analyze mean'
+}, {
   option: 'batch',
   type: 'Boolean',
 }, {
@@ -104,10 +108,28 @@ var spring_options = [{
   default:'300',
 }];
 
+var kspring_options = [{
+  option: 'min-charge',
+  type:'Float',
+  description: 'minimum spring charge',
+  default: '1',
+}, {
+  option:'max-charge',
+  type:'Float',
+  description:'maximum spring charge',
+  default:'10',
+}, {
+  option:'constant',
+  type:'Float',
+  description:'maximum spring charge',
+  default:'1e-5',
+}];
+
 var collision_options = [{
   option: 'fix-first',
   type:'Boolean',
   description: 'fix first object to the mean mass',
+  default:'true'
 }, {
   option:'min-mass',
   type:'Float',

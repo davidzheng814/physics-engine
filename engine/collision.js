@@ -21,14 +21,14 @@ class CollisionSimulator extends Simulator {
     this.minMass = args.minMass;
     this.maxMass = args.maxMass;
 
-    this.initEncs();
-    this.initWorld();
     this.minCollide = args.minCollide;
     this.allCollide = args.allCollide;
     this.fixFirst = args.fixFirst;
     this.colWindowStart = args.colWindowStart;
     this.colWindowEnd = args.colWindowEnd;
     this.maxVel = 9; // TODO hardcoded
+    this.initEncs();
+    this.initWorld();
   }
 
   initWorld() {
@@ -64,11 +64,22 @@ class CollisionSimulator extends Simulator {
     this.masses = [];
     for (var i = 0; i < this.numBodies; ++i) {
       var mass = ((i == 0 && this.fixFirst) || meanOnly) 
-          ? (this.minMass + this.maxMass) / 2
+        ? 7
         : uniform(this.minMass, this.maxMass);
       this.masses.push(mass);
+      if ('bodies' in this) {
+        Body.setMass(this.bodies[i], mass);
+      }
     }
   }
+
+  getKineticEnergy() {
+    var ke = 0;
+    for (var body of this.bodies) {
+        ke += 0.5 * body.mass * Vector.magnitudeSquared(body.velocity);
+    }
+    return ke;
+  };
 
   getEncs() {
     return this.masses;
@@ -76,20 +87,24 @@ class CollisionSimulator extends Simulator {
 
   resetState(lastReset=false) {
     super.resetState(lastReset);
+    this.initKE = this.getKineticEnergy();
     this.collisions = [];
   }
 
   isValidObs() {
+    if (Math.abs(this.getKineticEnergy() - this.initKE) > 1e-4) {
+        return false;
+    }
     // console.log(this.collisions);
     var uniqCollisions = [];
     var uniqCollidedObjs = [];
     for (var col of this.collisions.map(x=>x[1])) {
       var success = true;
-      for (uniqCol of uniqCollisions) {
+      for (var uniqCol of uniqCollisions) {
         if (uniqCol[0] == col[0] && uniqCol[1] == col[1]) {
           success = false;
+          break;
         }
-        break;
       }
       if (success) uniqCollisions.push(col);
       if (!uniqCollidedObjs.includes(col[0])) uniqCollidedObjs.push(col[0]);
@@ -109,6 +124,9 @@ class CollisionSimulator extends Simulator {
   }
 
   isValidRo() {
+    if (Math.abs(this.getKineticEnergy() - this.initKE) > 1e-4) {
+        return false;
+    }
     return this.collisions.filter(x => x[0] >= this.colWindowStart && x[0] < this.colWindowEnd).length > 0;
   }
 
