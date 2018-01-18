@@ -97,30 +97,43 @@ class Simulator {
       return;
     }
 
-    var padding = 0.2 * this.width;
-    var positions = [];
-    var totalPos = {x:0, y:0};
-    var center = {x:this.width/2, y:this.height/2};
+    var padding = this.bodyRadius + 10;
 
     // generate initial positions
-    for (var i = 0; i < this.numBodies; ++i) {
-      while (true) { // generates an non-overlapping position. 
-        var x = Math.round(uniform(padding, this.width - padding));
-        var y = Math.round(uniform(padding, this.height - padding));
-        var pos = {x:x, y:y};
-        var success = true;
-        for (var j = 0; j < positions.length; ++j) {
-          if (Vector.magnitude(Vector.sub(positions[j], pos)) <= 2.5*this.bodyRadius) {
-            success = false;
+    while (true) {
+      var positions = [];
+      var resetAll = false;
+      var totalPos = {x:0, y:0};
+      var center = {x:this.width/2, y:this.height/2};
+      for (var i = 0; i < this.numBodies; ++i) {
+        if (resetAll) break;
+        var failCount = 0;
+        while (true) { // generates an non-overlapping position. 
+          var x = Math.round(uniform(padding, this.width - padding));
+          var y = Math.round(uniform(padding, this.height - padding));
+          var pos = {x:x, y:y};
+          var success = true;
+          for (var j = 0; j < positions.length; ++j) {
+            if (Vector.magnitude(Vector.sub(positions[j], pos)) <= 2*this.bodyRadius + 10) {
+              success = false;
+              break;
+            }
+          }
+          if (success) {
+            positions.push(pos);
+            totalPos = Vector.add(totalPos, pos);
             break;
+          } else {
+            failCount++;
+            if (failCount >= 5) {
+              failCount = 0;  
+              resetAll = true;
+              break;
+            }
           }
         }
-        if (success) {
-          positions.push(pos);
-          totalPos = Vector.add(totalPos, pos);
-          break;
-        }
       }
+      if (!resetAll) break;
     }
 
     // set adjusted positions.
@@ -221,3 +234,4 @@ module.exports = {
   RenderSimulator: RenderSimulator,
   Simulator: Simulator
 }
+

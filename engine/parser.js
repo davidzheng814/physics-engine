@@ -43,12 +43,12 @@ var default_options = [{
   type: 'String',
   description: 'type of physics',
   enum: ['spring', 'collision', 'friction'],
-  default:'spring'
+  default:'collision'
 }, {
   option: 'num-bodies',
   type: 'Int',
   description: 'num bodies',
-  default:'3',
+  default:'6',
 }, {
   option: 'width',
   type: 'Int',
@@ -68,7 +68,7 @@ var default_options = [{
   option: 'body-radius',
   type: 'Int',
   description: 'body radius',
-  default:'70',
+  default:'50',
 }, {
   option: 'predict-mean',
   type: 'Boolean',
@@ -126,20 +126,15 @@ var kspring_options = [{
 }];
 
 var collision_options = [{
-  option: 'fix-first',
-  type:'Boolean',
-  description: 'fix first object to the mean mass',
-  default:'true'
-}, {
   option:'min-mass',
   type:'Float',
   description:'minimum mass',
-  default:'2',
+  default:'0.25',
 }, {
   option:'max-mass',
   type:'Float',
   description:'maximum mass',
-  default:'12',
+  default:'4',
 }, {
   option: 'min-collide',
   type:'Boolean',

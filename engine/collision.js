@@ -15,6 +15,10 @@ function uniform(a, b) {
   return a + Math.random() * (b - a);
 }
 
+function geo_uniform(a, b) {
+  return a * (b / a) ** Math.random()
+}
+
 class CollisionSimulator extends Simulator {
   constructor(args) {
     super(args);
@@ -63,14 +67,16 @@ class CollisionSimulator extends Simulator {
   initEncs(meanOnly=false) {
     this.masses = [];
     for (var i = 0; i < this.numBodies; ++i) {
-      var mass = ((i == 0 && this.fixFirst) || meanOnly) 
-        ? 7
-        : uniform(this.minMass, this.maxMass);
+      var mass = (i == 0 || meanOnly) 
+        ? 1
+        : geo_uniform(this.minMass, this.maxMass);
       this.masses.push(mass);
       if ('bodies' in this) {
         Body.setMass(this.bodies[i], mass);
       }
     }
+
+    this.collisions = [];
   }
 
   getKineticEnergy() {
@@ -91,43 +97,66 @@ class CollisionSimulator extends Simulator {
     this.collisions = [];
   }
 
+  // isValidObs() {
+  //   if (Math.abs(this.getKineticEnergy() - this.initKE) > 1e-4) {
+  //       return false;
+  //   }
+  //   // console.log(this.collisions);
+  //   var uniqCollisions = [];
+  //   var uniqCollidedObjs = [];
+  //   for (var col of this.collisions.map(x=>x[1])) {
+  //     var success = true;
+  //     for (var uniqCol of uniqCollisions) {
+  //       if (uniqCol[0] == col[0] && uniqCol[1] == col[1]) {
+  //         success = false;
+  //         break;
+  //       }
+  //     }
+  //     if (success) uniqCollisions.push(col);
+  //     if (!uniqCollidedObjs.includes(col[0])) uniqCollidedObjs.push(col[0]);
+  //     if (!uniqCollidedObjs.includes(col[1])) uniqCollidedObjs.push(col[1]);
+  //   }
+  //   var numUniqCols = uniqCollisions.length;
+  //   var numCollidedObjs = uniqCollidedObjs.length;
+
+  //   if (this.minCollide) {
+  //     return numUniqCols == this.numBodies-1 && numCollidedObjs == this.numBodies;
+  //   } else if (this.allCollide) {
+  //     return (2*numUniqCols == this.numBodies*(this.numBodies-1)
+  //         && numCollidedObjs == this.numBodies);
+  //   } else {
+  //     return numCollidedObjs == this.numBodies;
+  //   }
+  // }
+
   isValidObs() {
     if (Math.abs(this.getKineticEnergy() - this.initKE) > 1e-4) {
         return false;
     }
-    // console.log(this.collisions);
-    var uniqCollisions = [];
-    var uniqCollidedObjs = [];
-    for (var col of this.collisions.map(x=>x[1])) {
-      var success = true;
-      for (var uniqCol of uniqCollisions) {
-        if (uniqCol[0] == col[0] && uniqCol[1] == col[1]) {
-          success = false;
-          break;
+
+    var connectedObjs = [0];
+    var nextObjs = [0];
+    while (nextObjs.length > 0) {
+      var cur_obj = nextObjs.pop();
+      for (var col of this.collisions.map(x=>x[1])) {
+        if (col[0] == cur_obj && connectedObjs.indexOf(col[1]) == -1) {
+            connectedObjs.push(col[1]);
+            nextObjs.push(col[1]);
+        } else if (col[1] == cur_obj && connectedObjs.indexOf(col[0]) == -1) {
+          connectedObjs.push(col[0]);
+          nextObjs.push(col[0]);
         }
       }
-      if (success) uniqCollisions.push(col);
-      if (!uniqCollidedObjs.includes(col[0])) uniqCollidedObjs.push(col[0]);
-      if (!uniqCollidedObjs.includes(col[1])) uniqCollidedObjs.push(col[1]);
     }
-    var numUniqCols = uniqCollisions.length;
-    var numCollidedObjs = uniqCollidedObjs.length;
 
-    if (this.minCollide) {
-      return numUniqCols == this.numBodies-1 && numCollidedObjs == this.numBodies;
-    } else if (this.allCollide) {
-      return (2*numUniqCols == this.numBodies*(this.numBodies-1)
-          && numCollidedObjs == this.numBodies);
-    } else {
-      return numCollidedObjs == this.numBodies;
-    }
+    return connectedObjs.length == this.numBodies;
   }
 
   isValidRo() {
     if (Math.abs(this.getKineticEnergy() - this.initKE) > 1e-4) {
         return false;
     }
-    return this.collisions.filter(x => x[0] >= this.colWindowStart && x[0] < this.colWindowEnd).length > 0;
+    return this.collisions.length >= this.numBodies - 2;
   }
 
   collides() {
@@ -136,3 +165,4 @@ class CollisionSimulator extends Simulator {
 };
 
 module.exports = CollisionSimulator;
+
