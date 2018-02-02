@@ -19,20 +19,34 @@ function geo_uniform(a, b) {
   return a * (b / a) ** Math.random()
 }
 
+function ke(body) {
+  return 0.5 * body.mass * Vector.magnitudeSquared(body.velocity);
+}
+
 class CollisionSimulator extends Simulator {
   constructor(args) {
     super(args);
     this.minMass = args.minMass;
     this.maxMass = args.maxMass;
+    this.minRestitution = args.minRestitution;
+    this.maxRestitution = args.maxRestitution;
 
     this.minCollide = args.minCollide;
     this.allCollide = args.allCollide;
     this.fixFirst = args.fixFirst;
     this.colWindowStart = args.colWindowStart;
     this.colWindowEnd = args.colWindowEnd;
-    this.maxVel = 9; // TODO hardcoded
+    this.maxVel = 15; // TODO hardcoded
     this.initEncs();
     this.initWorld();
+
+    // Events.on(this.engine, 'collisionStart', (event) => {
+    //   var bodyA = event.pairs[0].bodyA;
+    //   var bodyB = event.pairs[0].bodyB;
+    //   var collision = event.pairs[0].collision;
+    //   if (!bodyA.label.startsWith('Circle') || !bodyB.label.startsWith('Circle')) return;
+    //   console.log("Col:", collision.normal);
+    // });
   }
 
   initWorld() {
@@ -76,6 +90,15 @@ class CollisionSimulator extends Simulator {
       }
     }
 
+    this.restitutions = [];
+    for (var i = 0; i < this.numBodies; ++i) {
+      var restitution = uniform(this.minRestitution, this.maxRestitution);
+      this.restitutions.push(restitution);
+      if ('bodies' in this) {
+        this.bodies[i].restitution = restitution;
+      }
+    }
+
     this.collisions = [];
   }
 
@@ -88,7 +111,7 @@ class CollisionSimulator extends Simulator {
   };
 
   getEncs() {
-    return this.masses;
+    return this.masses.concat(this.restitutions);
   }
 
   resetState(lastReset=false) {
@@ -97,42 +120,10 @@ class CollisionSimulator extends Simulator {
     this.collisions = [];
   }
 
-  // isValidObs() {
-  //   if (Math.abs(this.getKineticEnergy() - this.initKE) > 1e-4) {
-  //       return false;
-  //   }
-  //   // console.log(this.collisions);
-  //   var uniqCollisions = [];
-  //   var uniqCollidedObjs = [];
-  //   for (var col of this.collisions.map(x=>x[1])) {
-  //     var success = true;
-  //     for (var uniqCol of uniqCollisions) {
-  //       if (uniqCol[0] == col[0] && uniqCol[1] == col[1]) {
-  //         success = false;
-  //         break;
-  //       }
-  //     }
-  //     if (success) uniqCollisions.push(col);
-  //     if (!uniqCollidedObjs.includes(col[0])) uniqCollidedObjs.push(col[0]);
-  //     if (!uniqCollidedObjs.includes(col[1])) uniqCollidedObjs.push(col[1]);
-  //   }
-  //   var numUniqCols = uniqCollisions.length;
-  //   var numCollidedObjs = uniqCollidedObjs.length;
-
-  //   if (this.minCollide) {
-  //     return numUniqCols == this.numBodies-1 && numCollidedObjs == this.numBodies;
-  //   } else if (this.allCollide) {
-  //     return (2*numUniqCols == this.numBodies*(this.numBodies-1)
-  //         && numCollidedObjs == this.numBodies);
-  //   } else {
-  //     return numCollidedObjs == this.numBodies;
-  //   }
-  // }
-
   isValidObs() {
-    if (Math.abs(this.getKineticEnergy() - this.initKE) > 1e-4) {
-        return false;
-    }
+    // if (Math.abs(this.getKineticEnergy() - this.initKE) > 1e-4) {
+    //     return false;
+    // }
 
     var connectedObjs = [0];
     var nextObjs = [0];
@@ -149,13 +140,33 @@ class CollisionSimulator extends Simulator {
       }
     }
 
-    return connectedObjs.length == this.numBodies;
+    if (connectedObjs.length != this.numBodies) return false;
+
+    var restKnownObjs = []; // true if object i has a restitution that is known. 
+    for (var i = 0; i < this.numBodies; ++i) {
+      restKnownObjs.push(false);
+    }
+
+    for (var col of this.collisions.map(x => x[1])) {
+      if (this.bodies[col[0]].restitution < this.bodies[col[1]].restitution) {
+        restKnownObjs[col[1]] = true;
+      } else {
+        restKnownObjs[col[0]] = true;
+      }
+    }
+
+    var numRestKnownObjs = 0;
+    for (var i = 0; i < this.numBodies; ++i) {
+      if (restKnownObjs[i]) numRestKnownObjs++;
+    }
+
+    return numRestKnownObjs == this.numBodies - 1;
   }
 
   isValidRo() {
-    if (Math.abs(this.getKineticEnergy() - this.initKE) > 1e-4) {
-        return false;
-    }
+    // if (Math.abs(this.getKineticEnergy() - this.initKE) > 1e-4) {
+    //     return false;
+    // }
     return this.collisions.length >= this.numBodies - 2;
   }
 

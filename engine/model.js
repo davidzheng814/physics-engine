@@ -33,6 +33,9 @@ class Simulator {
     this.masses = [];
     for (var i = 0; i < this.numBodies; ++i) this.masses.push(1); // just a default value
 
+    this.restitutions = [];
+    for (var i = 0; i < this.numBodies; ++i) this.restitutions.push(1); // just a default value
+
     this.initEngine();
     this.renderer = new Renderer(this.engine, this.width, this.height);
   }
@@ -51,7 +54,10 @@ class Simulator {
   }
 
   getNewBody(id, extraObjs=false) {
-    var config = { restitution: 1.00, friction:0, frictionAir: 0, frictionStatic:0, 
+    var config = {
+      friction: 0,
+      frictionAir: 0,
+      frictionStatic: 0, 
       render: {
         fillStyle: extraObjs ? EXTRA_COLORS[id] : COLORS[id],
       },
@@ -71,6 +77,7 @@ class Simulator {
     Body.set(body, 'label', 'Circle '+id);
     Body.setMass(body, this.masses[id]);
     Body.setInertia(body, Infinity);
+    body.restitution = this.restitutions[id];
 
     return body;
   }

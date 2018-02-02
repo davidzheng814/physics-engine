@@ -136,6 +136,16 @@ var collision_options = [{
   description:'maximum mass',
   default:'4',
 }, {
+  option:'min-restitution',
+  type:'Float',
+  description:'minimum restitution',
+  default:'0.6',
+}, {
+  option:'max-restitution',
+  type:'Float',
+  description:'maximum restitution',
+  default:'1',
+}, {
   option: 'min-collide',
   type:'Boolean',
   description: 'guarantee # of collision pairs in obs phase is as small as possible.'
