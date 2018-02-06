@@ -92,7 +92,9 @@ class CollisionSimulator extends Simulator {
 
     this.restitutions = [];
     for (var i = 0; i < this.numBodies; ++i) {
-      var restitution = uniform(this.minRestitution, this.maxRestitution);
+      var restitution = (i == 0 || meanOnly) 
+        ? (this.minRestitution, this.maxRestitution) / 2
+        : uniform(this.minRestitution, this.maxRestitution);
       this.restitutions.push(restitution);
       if ('bodies' in this) {
         this.bodies[i].restitution = restitution;

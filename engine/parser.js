@@ -139,7 +139,7 @@ var collision_options = [{
   option:'min-restitution',
   type:'Float',
   description:'minimum restitution',
-  default:'0.6',
+  default:'0.5',
 }, {
   option:'max-restitution',
   type:'Float',
