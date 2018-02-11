@@ -28,6 +28,7 @@ class CollisionSimulator extends Simulator {
     super(args);
     this.minMass = args.minMass;
     this.maxMass = args.maxMass;
+    this.oneRestitution = args.oneRestitution;
     this.minRestitution = args.minRestitution;
     this.maxRestitution = args.maxRestitution;
 
@@ -90,14 +91,16 @@ class CollisionSimulator extends Simulator {
       }
     }
 
-    this.restitutions = [];
-    for (var i = 0; i < this.numBodies; ++i) {
-      var restitution = (i == 0 || meanOnly) 
-        ? (this.minRestitution + this.maxRestitution) / 2
-        : uniform(this.minRestitution, this.maxRestitution);
-      this.restitutions.push(restitution);
-      if ('bodies' in this) {
-        this.bodies[i].restitution = restitution;
+    if (!this.oneRestitution) {
+      this.restitutions = [];
+      for (var i = 0; i < this.numBodies; ++i) {
+        var restitution = (i == 0 || meanOnly) 
+          ? (this.minRestitution + this.maxRestitution) / 2
+          : uniform(this.minRestitution, this.maxRestitution);
+        this.restitutions.push(restitution);
+        if ('bodies' in this) {
+          this.bodies[i].restitution = restitution;
+        }
       }
     }
 
@@ -113,6 +116,7 @@ class CollisionSimulator extends Simulator {
   };
 
   getEncs() {
+    if (this.oneRestitution) return this.masses;
     return this.masses.concat(this.restitutions);
   }
 
@@ -144,6 +148,8 @@ class CollisionSimulator extends Simulator {
 
     if (connectedObjs.length != this.numBodies) return false;
 
+    if (this.oneRestitution) return true;
+
     var restKnownObjs = []; // true if object i has a restitution that is known. 
     for (var i = 0; i < this.numBodies; ++i) {
       restKnownObjs.push(false);
@@ -169,7 +175,7 @@ class CollisionSimulator extends Simulator {
     // if (Math.abs(this.getKineticEnergy() - this.initKE) > 1e-4) {
     //     return false;
     // }
-    return this.collisions.length >= this.numBodies - 2;
+    return this.collisions.length >= this.numBodies - 1;
   }
 
   collides() {

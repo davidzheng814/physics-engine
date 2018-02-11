@@ -136,6 +136,10 @@ var collision_options = [{
   description:'maximum mass',
   default:'4',
 }, {
+  option:'one-restitution',
+  type:'Boolean',
+  description:'Make all restitution = 1',
+}, {
   option:'min-restitution',
   type:'Float',
   description:'minimum restitution',

@@ -11,7 +11,7 @@ var Engine = Matter.Engine,
   Bodies = Matter.Bodies;
 
 var COLORS = [
-  'blue', 'red', 'green', '#f76f00', '#8c008c', '#008dc9'
+  'blue', 'red', 'green', '#f76f00', '#8c008c', '#008dc9', '#89e1e7', '#fb86f2', '#794778', 
 ];
 
 var EXTRA_COLORS = [
