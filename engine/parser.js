@@ -42,7 +42,7 @@ var default_options = [{
   option: 'physics',
   type: 'String',
   description: 'type of physics',
-  enum: ['spring', 'collision', 'friction'],
+  enum: ['spring', 'collision', 'friction', 'gravity'],
   default:'collision'
 }, {
   option: 'num-bodies',

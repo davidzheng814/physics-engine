@@ -29,6 +29,7 @@ class Simulator {
     this.height = args.height;
     this.maxVel = args.maxVel;
     this.bodyRadius = args.bodyRadius; 
+    this.fr = 120;
 
     this.masses = [];
     for (var i = 0; i < this.numBodies; ++i) this.masses.push(1); // just a default value
@@ -111,6 +112,7 @@ class Simulator {
       var positions = [];
       var resetAll = false;
       var totalPos = {x:0, y:0};
+      var totalMass = 0;
       var center = {x:this.width/2, y:this.height/2};
       for (var i = 0; i < this.numBodies; ++i) {
         if (resetAll) break;
@@ -128,7 +130,8 @@ class Simulator {
           }
           if (success) {
             positions.push(pos);
-            totalPos = Vector.add(totalPos, pos);
+            totalPos = Vector.add(totalPos, Vector.mult(pos, this.masses[i]));
+            totalMass += this.masses[i]
             break;
           } else {
             failCount++;
@@ -144,7 +147,8 @@ class Simulator {
     }
 
     // set adjusted positions.
-    var adjustPos = isCentered ? Vector.sub(Vector.div(totalPos, this.numBodies), center) : {x:0,y:0};
+    var centerOfMass = Vector.div(totalPos, totalMass);
+    var adjustPos = isCentered ? Vector.sub(centerOfMass, center) : {x:0,y:0};
 
     this.initPos = [];
     for (var i = 0; i < this.numBodies; ++i) {
@@ -162,14 +166,17 @@ class Simulator {
     }
 
     var vels = [];
-    var totalVel = {x:0, y:0};
+    var totalMomentum = {x:0, y:0};
+    var totalMass = 0;
     for (var i = 0; i < this.numBodies; ++i) {
       var vel = {x:uniform(-this.maxVel, this.maxVel), y:uniform(-this.maxVel, this.maxVel)};
-      totalVel = Vector.add(totalVel, vel);
+      totalMomentum = Vector.add(totalMomentum, Vector.mult(vel, this.masses[i]));
+      totalMass += this.masses[i];
       vels.push(vel);
     }
+    var avgVel = Vector.div(totalMomentum, totalMass);
 
-    var adjustVel = zeroMomentum ? Vector.div(totalVel, this.numBodies) : {x:0,y:0};
+    var adjustVel = zeroMomentum ? avgVel : {x:0,y:0};
     this.initVel = [];
     for (var i = 0; i < this.numBodies; ++i) {
       this.initVel.push(Vector.sub(vels[i], adjustVel));
@@ -185,7 +192,7 @@ class Simulator {
   }
 
   nextStep() {
-    Engine.update(this.engine, 1000 / 120);
+    Engine.update(this.engine, 1000 / this.fr);
     ++this.step;
   }
 

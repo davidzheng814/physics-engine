@@ -6,6 +6,7 @@ var readline = require('readline');
 var child_process = require('child_process');
 var SpringSimulator = require('./spring');
 var CollisionSimulator = require('./collision');
+var GravitySimulator = require('./gravity');
 var RenderSimulator = require('./model').RenderSimulator;
 var optionator = require('./parser');
 Matter.use(MatterAttractors);
@@ -24,6 +25,8 @@ function generate(args, idx) {
     var simulator = new SpringSimulator(args);
   } else if (args.physics == 'collision') {
     var simulator = new CollisionSimulator(args);
+  } else if (args.physics == 'gravity') {
+    var simulator = new GravitySimulator(args);
   }
 
   var data = {
