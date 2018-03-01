@@ -37,6 +37,7 @@ class CollisionSimulator extends Simulator {
     this.fixFirst = args.fixFirst;
     this.colWindowStart = args.colWindowStart;
     this.colWindowEnd = args.colWindowEnd;
+    // this.maxVel = 9; // TODO hardcoded
     this.maxVel = 15; // TODO hardcoded
     this.initEncs();
     this.initWorld();
@@ -68,6 +69,7 @@ class CollisionSimulator extends Simulator {
     super.nextStep();
     var vels_f = this.bodies.map(x => Vector.clone(x.velocity));
     var collided = [];
+    var wall_collided = [];
 
     for (var i = 0; i < this.numBodies; ++i) {
       if (Math.abs(Math.abs(vels_f[i].x) - Math.abs(vels_0[i].x)) >= 1e-7 &&
@@ -76,7 +78,14 @@ class CollisionSimulator extends Simulator {
       }
     }
 
+    for (var i = 0; i < this.numBodies; ++i) {
+      if (Vector.magnitude(Vector.sub(vels_f[i], vels_0[i])) > 1e-5) {
+        wall_collided.push(i);
+      }
+    }
+
     if (collided.length >= 2) this.collisions.push([this.step-1, collided.slice(0, 2)]);
+    if (wall_collided.length == 1) this.wall_collisions.push([this.step, wall_collided[0]]);
   }
 
   initEncs(meanOnly=false) {
@@ -105,6 +114,7 @@ class CollisionSimulator extends Simulator {
     }
 
     this.collisions = [];
+    this.wall_collisions = [];
   }
 
   getKineticEnergy() {
@@ -124,6 +134,7 @@ class CollisionSimulator extends Simulator {
     super.resetState(lastReset);
     this.initKE = this.getKineticEnergy();
     this.collisions = [];
+    this.wall_collisions = [];
   }
 
   isValidObs() {
@@ -163,12 +174,17 @@ class CollisionSimulator extends Simulator {
       }
     }
 
+    for (var col_obj of this.wall_collisions.map(x => x[1])) {
+      restKnownObjs[col_obj] = true;
+    }
+
     var numRestKnownObjs = 0;
     for (var i = 0; i < this.numBodies; ++i) {
       if (restKnownObjs[i]) numRestKnownObjs++;
     }
 
-    return numRestKnownObjs == this.numBodies - 1;
+    // return numRestKnownObjs == this.numBodies - 1;
+    return numRestKnownObjs == this.numBodies;
   }
 
   isValidRo() {

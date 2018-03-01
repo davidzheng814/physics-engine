@@ -72,13 +72,12 @@ function generate(args, idx) {
   if (args.predictMean) {
     simulator.resetState(true);
     simulator.initEncs(true);
-    var runStates = [];
+    data.mean_states = [];
     for (var t = 0; t < args.numRoSteps; ++t) {
       simulator.nextStep();
       var state = simulator.getState();
-      runStates.push(state);
+      data.mean_states.push(state);
     }
-    data.mean_states = [runStates];
 
     if (args.analyzeMean) {
       analyzeMean(data.ro_states, data.mean_states);

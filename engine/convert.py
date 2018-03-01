@@ -101,11 +101,18 @@ def create_datasets(names, arrays, f, sfx=''):
 
 if __name__ == '__main__':
     data_paths = [
-        ('jsons_default_mass32', '_mass32'),
-        ('jsons_default_3', '_obj3'),
-        ('jsons_default_train', ''),
-        ('jsons_default_9', '_obj9'),
-        ('jsons_default_long', '_long'),
+        # ('jsons_default_train', ''),
+        # ('jsons_default_3', '_obj3'),
+        # ('jsons_default_9', '_obj9'),
+        # ('jsons_default_mass32', '_mass32'),
+        # ('jsons_default_long', '_long'),
+        ('jsons_long_fix_3', '_long_fix3'),
+        ('jsons_long_fix_6', '_long_fix6'),
+        ('jsons_long_fix_9', '_long_fix9'),
+        ('jsons_test_fix_3', '_test_fix3'),
+        ('jsons_test_fix_6', '_test_fix6'),
+        ('jsons_test_fix_9', '_test_fix9'),
+        # ('jsons_default_mass32', '_mass32_full')
     ]
 
     for folder, sfx in data_paths:
